@@ -36,37 +36,83 @@ class NaiveBayesClassifier:
         pd.cut(col, bins=num_of_bins, labels=labels)
         return col
 
+    @staticmethod
+    def calculate_prior(data):
+        unique, count = np.unique(data, return_counts=True, axis=0)
+        return count / len(pair)
+
+    @staticmethod
+    def calculate_likelihood(feature, target, m=2):
+        feature_unique = np.unique(feature, return_counts=False, axis=0)
+        # p = uniform prior (1/M, M – number of diff. values)
+        print(feature_unique)
+        p = 1 / len(feature_unique)
+        print(f"p: = {p}")
+        target_unique = np.unique(target, return_counts=False, axis=0)
+        print(target_unique)
+        data = pd.DataFrame(zip(feature, target), columns=['feature', 'target'])
+        print(data)
+        prob_df = pd.DataFrame(columns=['feature', 'target', 'likelihood'])
+        for i in target_unique:
+            # n : number of sample class value = i
+            n = len(data.loc[data['target'] == i,])
+            for j in feature_unique:
+                # n_c: number of examples for which v(feature) = vj and c = ci
+                n_c = len(data.loc[(data['target'] == i) & (data['feature'] == j),])
+                # prob = (n_c + m*p) / (n +m )
+                prob = (n_c + m * p) / (n + m)
+                print("target = {}\nfeature = {}\nprob = {}".format(i, j, prob))
+                prob_df = prob_df.append({'feature': j, 'target': i, 'likelihood': prob}, ignore_index=True)
+        print(prob_df)
+        return prob_df
+
     def preprocess(self):
         encoder = LabelEncoder()
         df = pd.read_csv('train.csv')
         Y = df['class'].copy()
         df = df.drop('class', axis=1)
         data = {}
-        #         data['features'] = df.columns.values
-        #         print(data)
-        #         data['class'] = Y.name
-        for col in df.columns:
-            features = {}
-            data['features'] = []  # every feature can be accesed vie data['features'][feature_name]
-            print(data)
-
-            if self.struct.loc[self.struct.name == col, 'unique_values'].values[0] == 'NUMERIC':
+        features = {}
+        for column in df.columns:
+            col = {}
+            if self.struct.loc[self.struct.name == column, 'unique_values'].values[0] == 'NUMERIC':
                 dtype = 'NUMERIC'
-                data['features'][col]['type'] = 'dtype'
-                data['features'][col]['rawdata'] = self.fillna(df[col], dtype)
-                data['features'][col]['lables'] = [x for x in range(num_of_bins)]
-                data['features'][col]['values'] = self.discrete_numeric(data['features'][col]['data'], self.bins,
-                                                                        data['features'][col]['lables'])
+                col['type'] = 'dtype'
+                col['rawdata'] = self.fillna(df[column], dtype)
+                col['lables'] = [x for x in range(self.bins)]
+                col['values'] = self.discrete_numeric(col['rawdata'], self.bins,
+                                                      col['lables'])
             else:
                 dtype = 'OBJECT'
-                data['features'][col]['type'] = dtype
-                data['features'][col]['rawdata'] = self.fillna(df[col], dtype)
-                encoder.fit(data['features'][col]['rawdata'])
-                data['features'][col]['lables'] = encoder.classes_
-                data['features'][col]['values'] = encoder.transform(data['features'][col]['rawdata'])
+                col['type'] = dtype
+                col['rawdata'] = self.fillna(df[column], dtype)
+                encoder.fit(col['rawdata'])
+                col['lables'] = encoder.classes_
+                col['values'] = encoder.transform(col['rawdata'])
+            features[column] = col
+        data['features'] = features
 
+        # construct class
+        dtype = 'OBJECT'
+        data['class'] = {'dtype': dtype,
+                         'rawdata': self.fillna(Y, dtype),
+                         'lables': encoder.fit(Y).classes_,
+                         'values': encoder.fit_transform(Y),
+                         'prior': NaiveBayesClassifier.calculate_prior(encoder.fit_transform(Y)),
+                         }
         self.model = data
 
     def build_pipeline(self):
         self.preprocess()
+        #         self.calculate_probabilites()
         return "Building classifier using train-set is done!"
+
+
+
+
+
+
+
+
+
+
